@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Tradewind Rally — Island Air Challenge</title>
+<style>
+  :root {
+    --ink: #f2f6fa;
+    --panel: rgba(8, 24, 40, 0.72);
+    --accent: #ffb52e;
+    --green: #37d67a;
+    --red: #ff5040;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1c2c;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink); }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .hidden { display: none !important; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+  .hud-panel { position: absolute; background: var(--panel); border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  #hud-mission-box { top: 12px; left: 12px; min-width: 250px; }
+  #hud-mission { font-size: 19px; font-weight: 800; letter-spacing: 1px; color: var(--accent); }
+  #hud-objective { font-size: 13px; opacity: 0.95; margin-top: 2px; }
+  #hud-score-box { top: 12px; right: 12px; text-align: right; }
+  #hud-score { font-size: 18px; font-weight: 800; }
+  #hud-timer { font-size: 15px; font-weight: 700; }
+  #hud-compass-box { top: 12px; left: 50%; transform: translateX(-50%); text-align: center; padding: 6px 14px; }
+  #hud-heading { font-size: 20px; font-weight: 800; }
+  #hud-compass { font-size: 12px; letter-spacing: 2px; opacity: 0.9; white-space: nowrap; }
+  #hud-compass .tick { display: inline-block; width: 34px; text-align: center; opacity: 0.6; }
+  #hud-compass .tick.centre { opacity: 1; color: var(--accent); font-weight: 800; }
+  #hud-instruments { left: 12px; bottom: 12px; display: flex; gap: 14px; align-items: center; }
+  .gauge { text-align: center; min-width: 74px; }
+  .gauge .value { font-size: 30px; font-weight: 800; line-height: 1; }
+  .gauge .label { font-size: 11px; letter-spacing: 1px; opacity: 0.85; }
+  .gauge .sub { font-size: 11px; opacity: 0.8; }
+  #hud-attitude { background: #10283e; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); }
+  #hud-bars { right: 12px; bottom: 12px; width: 220px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 12px; font-weight: 700; }
+  .bar { flex: 1; height: 12px; background: rgba(255,255,255,0.18); border-radius: 6px; overflow: hidden; }
+  .bar > div { height: 100%; border-radius: 6px; transition: width 0.15s linear; }
+  #hud-throttle-fill { background: #4f97d8; }
+  #hud-fuel-fill { background: var(--green); }
+  #hud-damage-fill { background: var(--red); }
+  #hud-gear { text-align: right; font-size: 12px; font-weight: 800; margin-top: 4px; }
+  #hud-message { position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+    font-size: 26px; font-weight: 800; color: #fff; background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 10px 22px;
+    opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+  #hud-hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; opacity: 0.85; background: var(--panel); border-radius: 8px; padding: 5px 12px; }
+
+  /* ---- Full-screen overlays ---- */
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center;
+    justify-content: center; background: rgba(4, 14, 26, 0.38); }
+  .card { background: rgba(8, 24, 40, 0.88); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 16px; padding: 26px 32px; max-width: 860px; width: 92%;
+    max-height: 92vh; overflow-y: auto; text-align: center; }
+  .card h1 { margin: 0 0 2px; font-size: 44px; letter-spacing: 2px; color: var(--accent); }
+  .card h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; opacity: 0.9; }
+  .card p { font-size: 14px; line-height: 1.5; margin: 8px 0; }
+  .missions { display: flex; gap: 12px; margin: 16px 0 8px; }
+  .mission-card { flex: 1; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.25);
+    border-radius: 12px; color: var(--ink); padding: 12px; cursor: pointer; text-align: left;
+    font-family: inherit; }
+  .mission-card:hover { border-color: var(--accent); }
+  .mission-card.selected { border-color: var(--accent); background: rgba(255,181,46,0.16); }
+  .mission-card .key { display: inline-block; background: var(--accent); color: #222; font-weight: 800;
+    border-radius: 5px; padding: 1px 7px; margin-right: 6px; font-size: 12px; }
+  .mission-card strong { font-size: 16px; display: block; margin: 4px 0; }
+  .mission-card span { font-size: 12px; opacity: 0.9; display: block; }
+  .mission-card em { font-size: 11px; opacity: 0.7; font-style: normal; }
+  .loadouts { display: flex; gap: 12px; margin: 8px 0 16px; }
+  .loadout-card { flex: 1; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.25);
+    border-radius: 12px; color: var(--ink); padding: 10px; cursor: pointer; font-family: inherit; }
+  .loadout-card:hover { border-color: var(--green); }
+  .loadout-card.selected { border-color: var(--green); background: rgba(55,214,122,0.14); }
+  .loadout-card strong { display: block; font-size: 14px; }
+  .loadout-card span { font-size: 12px; opacity: 0.85; }
+  .big-btn { background: var(--accent); color: #221a05; border: none; border-radius: 10px;
+    font-size: 19px; font-weight: 800; padding: 12px 34px; cursor: pointer; font-family: inherit; }
+  .big-btn:hover { filter: brightness(1.1); }
+  .ghost-btn { background: transparent; color: var(--ink); border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 10px; font-size: 15px; padding: 10px 22px; cursor: pointer; font-family: inherit; margin-left: 8px; }
+  .controls-line { font-size: 12px; opacity: 0.85; margin-top: 14px; }
+  .end-title { font-size: 40px; color: var(--accent); margin: 0; letter-spacing: 2px; }
+  .end-reason { font-size: 16px; }
+  .end-score { font-size: 30px; font-weight: 800; margin: 10px 0 2px; }
+  .end-best, .end-detail { font-size: 13px; opacity: 0.85; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Tradewind Rally: fly the Kestrel-9 bush plane through rings and land on island airstrips"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud" class="hidden">
+  <div id="hud-mission-box" class="hud-panel">
+    <div id="hud-mission">RING RALLY</div>
+    <div id="hud-objective">Fly through all 8 golden rings in order</div>
+  </div>
+  <div id="hud-compass-box" class="hud-panel">
+    <div id="hud-heading">090°</div>
+    <div id="hud-compass"></div>
+  </div>
+  <div id="hud-score-box" class="hud-panel">
+    <div id="hud-score">SCORE 0</div>
+    <div id="hud-timer">2:30</div>
+  </div>
+  <div id="hud-instruments" class="hud-panel">
+    <canvas id="hud-attitude" width="96" height="96"></canvas>
+    <div class="gauge"><div class="value" id="hud-speed">0</div><div class="label">KNOTS</div><div class="sub" id="hud-vspeed">+0 fpm</div></div>
+    <div class="gauge"><div class="value" id="hud-alt">0</div><div class="label">ALT FT</div><div class="sub">ABOVE SEA</div></div>
+  </div>
+  <div id="hud-bars" class="hud-panel">
+    <div class="bar-row"><span style="width:64px">THROTTLE</span><div class="bar"><div id="hud-throttle-fill" style="width:0%"></div></div></div>
+    <div class="bar-row"><span style="width:64px" id="hud-fuel-text">FUEL 100%</span><div class="bar"><div id="hud-fuel-fill" style="width:100%"></div></div></div>
+    <div class="bar-row"><span style="width:64px" id="hud-damage-text">DMG 0%</span><div class="bar"><div id="hud-damage-fill" style="width:0%"></div></div></div>
+    <div id="hud-gear">GEAR DOWN</div>
+  </div>
+  <div id="hud-message"></div>
+  <div id="hud-hint">W/S throttle · ←/→ bank · ↑/↓ pitch · Space boost · G gear · R restart · P pause · M sound</div>
+</div>
+
+<div id="screen-title" class="screen">
+  <div class="card">
+    <h1>TRADEWIND RALLY</h1>
+    <h2>Island Air Challenge — fly the Kestrel-9 bush plane across the archipelago</h2>
+    <p>Chase view over a living archipelago: golden rings, island airstrips, boats, birds and
+      storm checkpoints. Mind your fuel, mind your damage, and mind the ground.</p>
+    <div class="missions"></div>
+    <p style="margin:4px 0 2px; font-size:13px; font-weight:700;">Pick a loadout — one choice, it flies with you:</p>
+    <div class="loadouts"></div>
+    <button id="btn-start" class="big-btn">TAKE OFF ▸</button>
+    <p class="controls-line">W/S throttle · ←/→ bank · ↑/↓ pitch · drag mouse to pitch · Space boost (burns fuel) ·
+      G landing gear · R restart · P pause · M sound · 1/2/3 pick a sortie · Enter to fly</p>
+  </div>
+</div>
+
+<div id="screen-end" class="screen hidden">
+  <div class="card">
+    <h1 class="end-title">MISSION COMPLETE</h1>
+    <p class="end-reason"></p>
+    <p class="end-score">SCORE 0</p>
+    <p class="end-best"></p>
+    <p class="end-detail"></p>
+    <button id="btn-restart" class="big-btn">FLY AGAIN (R)</button>
+    <button id="btn-title" class="ghost-btn">Hangar (missions)</button>
+  </div>
+</div>
+
+<div id="screen-pause" class="screen hidden">
+  <div class="card">
+    <h1 class="end-title">PAUSED</h1>
+    <p>Take a breath, pilot. The trade winds will wait.</p>
+    <button id="btn-resume" class="big-btn">RESUME (P)</button>
+  </div>
+</div>
+
+<script type="module">
+  import { Game } from './src/main.js';
+  import { stageShot } from './src/shots.js';
+  const game = new Game();
+  const params = new URLSearchParams(window.location.search);
+  const shot = params.get('shot');
+  if (shot) {
+    stageShot(shot, game);
+  } else {
+    game.run();
+  }
+</script>
+</body>
+</html>
